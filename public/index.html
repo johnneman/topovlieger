@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Topovlieger">
+  <meta name="theme-color" content="#1d6fb8">
+  <title>Topovlieger Europa</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <svg id="map" aria-label="Kaart van Europa"></svg>
+
+    <!-- Spel-HUD -->
+    <header id="hud" class="hidden">
+      <button id="btn-stop" class="round" aria-label="Stoppen">✕</button>
+      <div class="hud-mid">
+        <div class="progress"><div id="progress-bar"></div></div>
+        <div id="progress-text">0 / 0</div>
+      </div>
+      <div class="hud-stats">
+        <span id="streak" title="Reeks">🔥 0</span>
+        <span id="score" title="Punten">⭐ 0</span>
+      </div>
+    </header>
+
+    <div id="zoom-ctl" class="hidden">
+      <button class="round" id="zoom-in" aria-label="Inzoomen">+</button>
+      <button class="round" id="zoom-out" aria-label="Uitzoomen">−</button>
+      <button class="round" id="zoom-reset" aria-label="Hele kaart">⤢</button>
+    </div>
+
+    <div id="toast" aria-live="polite"></div>
+
+    <footer id="prompt" class="hidden">
+      <div id="prompt-label">Vlieg naar</div>
+      <div id="prompt-name">…</div>
+      <div id="prompt-tries"></div>
+      <div id="choices"></div>
+    </footer>
+
+    <!-- Menu -->
+    <section id="menu" class="overlay">
+      <div class="panel">
+        <h1><span class="logo">✈️</span> Topovlieger <small>Europa</small></h1>
+
+        <h2>Spelvorm</h2>
+        <div class="modes">
+          <label class="mode"><input type="radio" name="mode" value="fly" checked>
+            <span><b>Vliegmissie</b><em>Tik het land aan waar je heen moet vliegen</em></span></label>
+          <label class="mode"><input type="radio" name="mode" value="quiz">
+            <span><b>Waar ben ik?</b><em>Het vliegtuig landt ergens — welk land is het?</em></span></label>
+          <label class="mode"><input type="radio" name="mode" value="explore">
+            <span><b>Rondvliegen</b><em>Vrij oefenen: tik een land en zie de naam</em></span></label>
+        </div>
+
+        <h2>Welke landen? <span id="sel-count" class="pill">0</span></h2>
+        <div class="presets">
+          <button data-preset="all">Alles</button>
+          <button data-preset="eu">EU-landen</button>
+          <button data-preset="none">Geen</button>
+        </div>
+        <div id="regions"></div>
+
+        <h2>Opties</h2>
+        <label class="opt"><input type="checkbox" id="opt-labels" checked> Namen tonen van gevonden landen</label>
+        <label class="opt"><input type="checkbox" id="opt-sound" checked> Geluid</label>
+
+        <div id="best" class="best"></div>
+      </div>
+      <div class="menu-actions">
+        <button id="btn-start" class="primary">Opstijgen! ✈️</button>
+      </div>
+    </section>
+
+    <!-- Uitslag -->
+    <section id="result" class="overlay hidden">
+      <div class="panel center">
+        <div id="res-stars" class="stars"></div>
+        <h1 id="res-title">Geland!</h1>
+        <div class="res-grid">
+          <div><b id="res-score">0</b><span>punten</span></div>
+          <div><b id="res-acc">0%</b><span>in één keer goed</span></div>
+          <div><b id="res-streak">0</b><span>langste reeks</span></div>
+        </div>
+        <div id="res-best" class="best"></div>
+        <div id="res-mistakes-wrap">
+          <h2>Nog even oefenen</h2>
+          <div id="res-mistakes" class="chips static"></div>
+        </div>
+      </div>
+      <div class="menu-actions">
+        <button id="btn-practice" class="primary">Oefen deze landen</button>
+        <button id="btn-again">Opnieuw</button>
+        <button id="btn-menu">Menu</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

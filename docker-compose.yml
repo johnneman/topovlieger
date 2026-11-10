@@ -1,0 +1,10 @@
+services:
+  topovlieger:
+    build: .
+    image: topovlieger-europa
+    container_name: topovlieger
+    restart: unless-stopped
+    # BIND_IP: zet op het LAN-adres van de server (bv. 192.168.1.10) om
+    # alleen op die netwerkkaart te luisteren. Standaard: alle interfaces.
+    ports:
+      - "${BIND_IP:-0.0.0.0}:${PORT:-8080}:80"
