@@ -9,6 +9,18 @@
   ];
   const FIT_WIDE = { type: "MultiPoint", coordinates: [[-24, 35], [-24, 66], [42, 71], [44, 36], [10, 34.5], [15, 71]] };
   const FIT_TALL = { type: "MultiPoint", coordinates: [[-10, 36], [-9, 58], [33, 35.5], [38, 62], [24, 70.5]] };
+  // Soorten onderwerpen. "tap" = hint bij Vliegmissie, "ask" = vraag bij Waar ben ik?
+  const KINDS = {
+    land: { label: "Landen", tap: "Tik het land aan op de kaart", ask: "Welk land is dit?", info: null },
+    zee: { label: "Zeeën, zeestraten en oceanen", tap: "Tik het water aan op de kaart", ask: "Welk water is dit?", info: "Zee of zeestraat" },
+    rivier: { label: "Rivieren", tap: "Tik de rivier aan op de kaart", ask: "Welke rivier is dit?", info: "Rivier" },
+    meer: { label: "Meren", tap: "Tik het meer aan op de kaart", ask: "Welk meer is dit?", info: "Meer" },
+    berg: { label: "Gebergten", tap: "Tik het gebergte aan op de kaart", ask: "Welk gebergte is dit?", info: "Gebergte" },
+    stad: { label: "Hoofdsteden", tap: "Tik de stad aan op de kaart", ask: "Welke hoofdstad is dit?", info: null },
+  };
+  const WATER = new Set(["zee", "rivier", "meer"]);
+  // "de Donau", "het Bodenmeer", "Het Kanaal"
+  const the = (c) => (c.article ? `${c.article} ${c.name}` : c.name);
   const START_LL = [5.6, 52.2]; // Nederland
   const MAX_TRIES = 3;
 
@@ -32,7 +44,7 @@
 
   // ---------- staat ----------
   const S = {
-    countries: new Map(),
+    items: new Map(),
     selected: new Set(),
     mode: "fly",
     queue: [], idx: 0, target: null, tries: 0,
@@ -76,7 +88,13 @@
     // nginx geeft de inhoud van /sounds/ als JSON-lijst (autoindex_format json)
     const files = await fetch("sounds/", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
     const lookup = new Map();
-    for (const c of S.countries.values()) { lookup.set(c.key.toLowerCase(), c.key); lookup.set(slug(c.name), c.key); }
+    // Landen eerst; daarna de rest. Een naam die al bezet is (stad Luxemburg) werkt met voorvoegsel: "stad-luxemburg".
+    const ordered = [...S.items.values()].sort((a, b) => (a.kind === "land" ? 0 : 1) - (b.kind === "land" ? 0 : 1));
+    for (const c of ordered) {
+      if (c.kind === "land") lookup.set(c.key.toLowerCase(), c.key);
+      if (!lookup.has(slug(c.name))) lookup.set(slug(c.name), c.key);
+      lookup.set(`${c.kind}-${slug(c.name)}`, c.key);
+    }
     for (const f of Array.isArray(files) ? files : []) {
       if (f.type !== "file" || !AUDIO_EXT.test(f.name)) continue;
       // "frankrijk-2.m4a" → "frankrijk", "FR.mp3" → "fr"
@@ -230,9 +248,15 @@
   // ---------- kaart ----------
   const svg = d3.select("#map");
   const root = svg.append("g");
+  // zeeën onderaan: al het land (ook buiten Europa) ligt eroverheen
+  const gSea = root.append("g");
   const gBg = root.append("g");
   const gLand = root.append("g");
+  const gMount = root.append("g");
+  const gLake = root.append("g");
+  const gRiver = root.append("g");
   const gMicro = root.append("g");
+  const gCity = root.append("g");
   const gTrail = root.append("g");
   const gLabels = root.append("g");
   const gPlane = root.append("g").attr("id", "plane");
@@ -264,7 +288,12 @@
   function rescale() {
     const k = S.k;
     gMicro.selectAll(".micro-dot").attr("r", 4.5 / k);
+    gMicro.selectAll(".sea-dot").attr("r", 6 / k);
     gMicro.selectAll(".micro-hit").attr("r", 13 / k);
+    gRiver.selectAll(".river").attr("stroke-width", 1.6 / k);
+    gRiver.selectAll(".river-hit").attr("stroke-width", 16 / k);
+    gCity.selectAll(".city").attr("x", -3.5 / k).attr("y", -3.5 / k).attr("width", 7 / k).attr("height", 7 / k);
+    gCity.selectAll(".city-hit").attr("r", 13 / k);
     gLabels.selectAll(".label").attr("font-size", 12 / k).attr("stroke-width", 3 / k);
     gTrail.selectAll(".trail").attr("stroke-width", 2.2 / k).attr("stroke-dasharray", `${6 / k} ${5 / k}`);
     drawPlane();
@@ -277,8 +306,10 @@
     zoom.extent([[0, 0], [w, h]]).translateExtent([[-w * 0.6, -h * 0.6], [w * 1.6, h * 1.6]]);
     gBg.selectAll("path").attr("d", path);
     gLand.selectAll("path").attr("d", (c) => path(c.feature));
-    for (const c of S.countries.values()) c.xy = projection(c.anchor);
+    for (const g of [gSea, gMount, gLake, gRiver]) g.selectAll("path").attr("d", (c) => path(c.feature));
+    for (const c of S.items.values()) c.xy = projection(c.anchor);
     gMicro.selectAll("g").attr("transform", (c) => `translate(${c.xy})`);
+    gCity.selectAll("g").attr("transform", (c) => `translate(${c.xy})`);
     gLabels.selectAll(".label").attr("x", (d) => d.xy()[0]).attr("y", (d) => d.xy()[1]);
     gLabels.selectAll(".float").remove();
     placePlaneAt(S.planeLL);
@@ -297,24 +328,49 @@
   }
 
   async function init() {
-    const data = await fetch("data/europe.json").then((r) => r.json());
+    const [data, topo] = await Promise.all([
+      fetch("data/europe.json").then((r) => r.json()),
+      fetch("data/topo.json").then((r) => (r.ok ? r.json() : { items: [], presets: {} })).catch(() => ({ items: [], presets: {} })),
+    ]);
     bgFeature = data.background;
     for (const f of data.countries) {
       const p = f.properties;
-      S.countries.set(p.key, { key: p.key, name: p.name, region: p.region, eu: p.eu, feature: f, anchor: anchorOf(f), micro: p.region === "micro" });
+      S.items.set(p.key, { key: p.key, kind: "land", article: "", name: p.name, region: p.region, eu: p.eu, feature: f, anchor: anchorOf(f), micro: p.region === "micro" });
     }
+    for (const t of topo.items) {
+      const country = t.country && S.items.get(t.country);
+      S.items.set(t.key, { ...t, feature: { type: "Feature", properties: {}, geometry: t.geometry },
+        region: t.kind === "stad" && country ? country.region : t.kind });
+    }
+    S.presets = topo.presets || {};
     gBg.append("path").datum(bgFeature).attr("class", "bg-land");
-    const list = [...S.countries.values()];
-    gLand.selectAll("path").data(list).join("path")
-      .attr("class", "country").attr("data-key", (c) => c.key)
-      .on("click", (e, c) => onTap(c.key));
-    const m = gMicro.selectAll("g").data(list.filter((c) => c.micro)).join("g");
-    m.append("circle").attr("class", "micro-dot").attr("data-key", (c) => c.key);
-    m.append("circle").attr("class", "micro-hit").on("click", (e, c) => onTap(c.key));
+    const list = [...S.items.values()];
+    const of = (kind) => list.filter((c) => c.kind === kind);
+    const tap = (e, c) => onTap(c.key);
+    gSea.selectAll("path").data(of("zee")).join("path")
+      .attr("class", "shape sea").attr("data-key", (c) => c.key).on("click", tap);
+    gLand.selectAll("path").data(of("land")).join("path")
+      .attr("class", "shape country").attr("data-key", (c) => c.key).on("click", tap);
+    gMount.selectAll("path").data(of("berg")).join("path")
+      .attr("class", "shape mount").attr("data-key", (c) => c.key).on("click", tap);
+    gLake.selectAll("path").data(of("meer")).join("path")
+      .attr("class", "shape lake").attr("data-key", (c) => c.key).on("click", tap);
+    const rv = of("rivier");
+    gRiver.selectAll("path.river").data(rv).join("path")
+      .attr("class", "shape river").attr("data-key", (c) => c.key);
+    gRiver.selectAll("path.river-hit").data(rv).join("path")
+      .attr("class", "river-hit").on("click", tap);
+    const m = gMicro.selectAll("g").data(list.filter((c) => c.micro || c.small)).join("g")
+      .attr("class", (c) => (c.kind === "land" ? "dot-land" : "dot-zee"));
+    m.append("circle").attr("class", (c) => (c.kind === "land" ? "shape micro-dot" : "shape sea-dot")).attr("data-key", (c) => c.key);
+    m.append("circle").attr("class", "micro-hit").on("click", tap);
+    const ct = gCity.selectAll("g").data(of("stad")).join("g").attr("class", "city-g").attr("data-key", (c) => c.key);
+    ct.append("rect").attr("class", "shape city").attr("data-key", (c) => c.key);
+    ct.append("circle").attr("class", "city-hit").on("click", tap);
 
     // instellingen
-    const def = list.filter((c) => c.region !== "kaukasus").map((c) => c.key);
-    S.selected = new Set(store.get("selected", def).filter((k) => S.countries.has(k)));
+    const def = list.filter((c) => c.kind === "land" && c.region !== "kaukasus").map((c) => c.key);
+    S.selected = new Set(store.get("selected", def).filter((k) => S.items.has(k)));
     S.mode = store.get("mode", "fly");
     S.labels = store.get("labels", true);
     S.sound = store.get("sound", true);
@@ -331,28 +387,36 @@
 
   // ---------- kleuren / labels ----------
   function setClass(key, cls, on = true) {
-    gLand.select(`[data-key="${key}"]`).classed(cls, on);
-    gMicro.select(`.micro-dot[data-key="${key}"]`).classed(cls, on);
+    root.selectAll(`.shape[data-key="${key}"]`).classed(cls, on);
   }
   function clearMap() {
-    for (const cls of ["ok", "meh", "miss", "flash", "target", "reveal", "picked", "off"]) {
-      gLand.selectAll(".country").classed(cls, false);
-      gMicro.selectAll(".micro-dot").classed(cls, false);
-    }
+    root.selectAll(".shape").classed("ok meh miss flash target reveal picked off sel", false);
     gLabels.selectAll("*").remove();
     gTrail.selectAll("*").remove();
   }
+  /** Welke onderwerpen zijn zichtbaar (gebergten, steden) en welke soorten zijn aantikbaar. */
+  function updateMapState() {
+    const shown = new Set(S.playing ? [...(S.lastPool || []), ...(S.mode === "explore" ? S.selected : [])] : S.selected);
+    gMount.selectAll(".mount").classed("shown", (c) => shown.has(c.key));
+    gCity.selectAll(".city-g").classed("shown", (c) => shown.has(c.key));
+    gMicro.selectAll(".dot-zee").classed("shown", (c) => shown.has(c.key));
+    let active = new Set();
+    if (S.playing && S.mode === "explore") active = new Set([...shown].map((k) => S.items.get(k)?.kind));
+    else if (S.playing && S.mode === "fly" && S.target) active = new Set([S.items.get(S.target).kind]);
+    for (const k of Object.keys(KINDS)) svg.classed("act-" + k, k === "land" || active.has(k));
+  }
   function addLabel(key, cls = "", ttl = 0) {
-    const c = S.countries.get(key);
+    const c = S.items.get(key);
     if (!ttl) gLabels.selectAll(`.label[data-key="${key}"]`).filter(function () { return !this.classList.contains("tmp"); }).remove();
+    const lift = ttl ? 20 : c.micro || c.small || c.kind === "stad" ? 12 : 0;
     const t = gLabels.append("text").datum({ xy: () => c.xy })
-      .attr("class", `label ${cls}${ttl ? " tmp" : ""}`).attr("data-key", key)
-      .attr("x", c.xy[0]).attr("y", c.xy[1] - (ttl ? 20 / S.k : c.micro ? 12 / S.k : 0)).text(c.name);
+      .attr("class", `label k-${c.kind} ${cls}${ttl ? " tmp" : ""}`).attr("data-key", key)
+      .attr("x", c.xy[0]).attr("y", c.xy[1] - lift / S.k).text(c.name);
     rescale();
     if (ttl) t.transition().delay(ttl).duration(400).style("opacity", 0).remove();
   }
   function floatText(key, txt) {
-    const c = S.countries.get(key);
+    const c = S.items.get(key);
     const t = gLabels.append("text").attr("class", "float")
       .attr("x", c.xy[0]).attr("y", c.xy[1] - 14 / S.k)
       .attr("font-size", 18 / S.k).attr("stroke-width", 4 / S.k).text(txt);
@@ -370,7 +434,7 @@
 
   // ---------- vliegen ----------
   function flyTo(key) {
-    const c = S.countries.get(key);
+    const c = S.items.get(key);
     const to = c.anchor;
     const p0 = [plane.x, plane.y], p1 = projection(to);
     const dx = p1[0] - p0[0], dy = p1[1] - p0[1];
@@ -421,7 +485,7 @@
 
   function ensureVisible(key) {
     // Als het doel buiten beeld valt (ingezoomd), schuif de kaart mee.
-    const c = S.countries.get(key);
+    const c = S.items.get(key);
     const t = d3.zoomTransform(svg.node());
     const [sx, sy] = t.apply(c.xy);
     const m = 60;
@@ -432,11 +496,13 @@
 
   function zoomToSmall(key) {
     // Kleine landen: inzoomen zodat je ze goed ziet.
-    const c = S.countries.get(key);
+    const c = S.items.get(key);
+    if (c.kind === "stad") return wait(0);
     const [[x0, y0], [x1, y1]] = path.bounds(c.feature);
     const size = Math.max(x1 - x0, y1 - y0, 1);
     if (size * S.k >= 55) return wait(0);
-    const k = Math.max(1, Math.min(10, (Math.min(innerWidth, innerHeight) * 0.3) / size));
+    // smalle zeestraten: niet te ver inzoomen, anders herken je de omgeving niet meer
+    const k = Math.max(1, Math.min(c.small ? 4 : 10, (Math.min(innerWidth, innerHeight) * 0.3) / size));
     const t = d3.zoomIdentity.translate(innerWidth / 2, innerHeight / 2 - 60).scale(k).translate(-c.xy[0], -c.xy[1]);
     return new Promise((r) => svg.transition().duration(600).call(zoom.transform, t).on("end", r).on("interrupt", r));
   }
@@ -467,6 +533,8 @@
     $("#hud .hud-mid").classList.toggle("hidden", S.mode === "explore");
     $("#hud .hud-stats").classList.toggle("hidden", S.mode === "explore");
     S.planeLL = START_LL;
+    S.target = null;
+    updateMapState();
     layout();
     svg.call(zoom.transform, d3.zoomIdentity);
     stopFun(); hideFun();
@@ -482,7 +550,7 @@
     updateHud();
     if (S.mode === "explore") {
       $("#prompt-label").textContent = "Rondvliegen";
-      $("#prompt-name").textContent = "Tik een land aan";
+      $("#prompt-name").textContent = "Tik iets aan op de kaart";
       $("#prompt-tries").textContent = "Het vliegtuig vliegt erheen en je ziet de naam";
       $("#choices").innerHTML = "";
       return;
@@ -500,7 +568,8 @@
     st.classList.toggle("hot", S.streak >= 3);
   }
   function triesText() {
-    if (!S.tries) return S.mode === "fly" ? "Tik het land aan op de kaart" : "Kies de juiste naam";
+    const kind = KINDS[S.items.get(S.target)?.kind || "land"];
+    if (!S.tries) return S.mode === "fly" ? kind.tap : "Kies de juiste naam";
     const left = (S.mode === "fly" ? MAX_TRIES : MAX_TRIES - 1) - S.tries;
     return `Nog ${left} poging${left === 1 ? "" : "en"}`;
   }
@@ -510,10 +579,11 @@
     S.target = S.queue[S.idx];
     S.tries = 0;
     updateHud();
-    const c = S.countries.get(S.target);
+    const c = S.items.get(S.target);
+    updateMapState();
     if (S.mode === "fly") {
       $("#prompt-label").textContent = "Vlieg naar";
-      $("#prompt-name").textContent = c.name;
+      $("#prompt-name").textContent = the(c);
       $("#prompt-tries").textContent = triesText();
       $("#choices").innerHTML = "";
     } else {
@@ -529,7 +599,7 @@
       gPlane.style("opacity", 0.35);
       await zoomToSmall(S.target);
       $("#prompt-label").textContent = "Waar ben ik geland?";
-      $("#prompt-name").textContent = "Welk land is dit?";
+      $("#prompt-name").textContent = KINDS[c.kind].ask;
       $("#prompt-tries").textContent = triesText();
       renderChoices();
       S.busy = false;
@@ -562,8 +632,8 @@
     S.results.push({ key: S.target, tries: S.tries, missed: true });
     setClass(S.target, "target", false);
     setClass(S.target, "reveal");
-    const c = S.countries.get(S.target);
-    toast(`Hier ligt ${c.name}`, "bad", 2200);
+    const c = S.items.get(S.target);
+    toast(`Hier ${c.kind === "rivier" ? "stroomt" : "ligt"} ${the(c)}`, "bad", 2200);
     ensureVisible(S.target);
     if (S.mode === "fly") { await wait(900); await flyTo(S.target); }
     await Promise.all([wait(1300), funLanding(S.target)]);
@@ -572,15 +642,27 @@
     if (S.labels) addLabel(S.target, "bad");
   }
 
+  function infoText(c) {
+    if (c.kind === "land") return REGIONS.find((r) => r[0] === c.region)[1] + (c.eu ? " · EU-lid" : "");
+    if (c.kind === "stad") { const l = S.items.get(c.country); return l ? `Hoofdstad van ${l.name}` : "Hoofdstad"; }
+    if (c.kind === "zee") {
+      if (/oceaan|ijszee/i.test(c.name)) return "Oceaan";
+      if (/straat|kanaal|bosporus|skagerrak|kattegat/i.test(c.name)) return "Zeestraat";
+      if (/golf/i.test(c.name)) return "Golf (baai)";
+      return "Zee";
+    }
+    return KINDS[c.kind].info;
+  }
+
   async function onTap(key) {
     if (!S.playing || S.busy) return;
-    const c = S.countries.get(key);
+    const c = S.items.get(key);
     if (S.mode === "explore") {
       S.busy = true;
-      gLand.selectAll(".picked").classed("picked", false);
+      root.selectAll(".picked").classed("picked", false);
       setClass(key, "picked");
       $("#prompt-name").textContent = c.name;
-      $("#prompt-tries").textContent = REGIONS.find((r) => r[0] === c.region)[1] + (c.eu ? " · EU-lid" : "");
+      $("#prompt-tries").textContent = infoText(c);
       await flyTo(key);
       addLabel(key, "", 1800);
       funLanding(key); // niet wachten: je mag meteen verder tikken
@@ -600,7 +682,7 @@
       sfx.bad();
       setClass(key, "flash");
       addLabel(key, "bad", 1300);
-      toast(`Oeps, dit is ${c.name}`, "bad", 1500);
+      toast(`Oeps, dit is ${the(c)}`, "bad", 1500);
       updateHud();
       setTimeout(() => setClass(key, "flash", false), 900);
       if (S.tries >= MAX_TRIES) {
@@ -618,9 +700,11 @@
   }
 
   function renderChoices() {
-    const target = S.countries.get(S.target);
+    const target = S.items.get(S.target);
     // afleiders: liefst uit dezelfde regio en uit de selectie
-    const others = [...S.countries.values()].filter((c) => c.key !== S.target);
+    const all = [...S.items.values()].filter((c) => c.key !== S.target);
+    const same = all.filter((c) => c.kind === target.kind);
+    const others = same.length >= 3 ? same : all;
     const prefer = shuffle(others.filter((c) => c.region === target.region && (S.selected.has(c.key) || (S.basePool || S.lastPool).includes(c.key))));
     const rest = shuffle(others.filter((c) => !prefer.includes(c)));
     const opts = shuffle([target, ...prefer.concat(rest).slice(0, 3)]);
@@ -649,7 +733,7 @@
       sfx.bad(); updateHud();
       if (S.tries >= MAX_TRIES - 1) {
         S.busy = true;
-        [...$("#choices").children].forEach((b) => { if (b.textContent === S.countries.get(S.target).name) b.classList.add("ok"); });
+        [...$("#choices").children].forEach((b) => { if (b.textContent === S.items.get(S.target).name) b.classList.add("ok"); });
         lockChoices();
         await reveal();
         S.idx++;
@@ -694,8 +778,8 @@
     S.mistakes = [...new Set(S.results.filter((r) => r.tries > 0).map((r) => r.key))];
     const wrongKeys = S.mistakes;
     $("#res-mistakes-wrap").classList.toggle("hidden", !wrongKeys.length);
-    $("#res-mistakes").innerHTML = wrongKeys.map((k) => `<span class="chip">${S.countries.get(k).name}</span>`).join("");
-    $("#btn-again").textContent = wrongKeys.length ? "Opnieuw 🔁 (je foutjes + andere landen)" : "Opnieuw 🔁";
+    $("#res-mistakes").innerHTML = wrongKeys.map((k) => `<span class="chip">${S.items.get(k).name}</span>`).join("");
+    $("#btn-again").textContent = wrongKeys.length ? "Opnieuw 🔁 (je foutjes + andere)" : "Opnieuw 🔁";
     $("#result").classList.remove("hidden");
     $("#hud").classList.add("hidden");
     $("#zoom-ctl").classList.add("hidden");
@@ -711,6 +795,7 @@
     $("#zoom-ctl").classList.add("hidden");
     $("#prompt").classList.add("hidden");
     $("#menu").classList.remove("hidden");
+    S.target = null;
     clearMap();
     showSelectionOnMap();
     layout();
@@ -721,32 +806,50 @@
   function buildMenu() {
     const box = $("#regions");
     box.innerHTML = "";
-    for (const [id, name] of REGIONS) {
-      const list = [...S.countries.values()].filter((c) => c.region === id);
-      if (!list.length) continue;
-      const sec = document.createElement("div");
-      sec.className = "region";
-      sec.innerHTML = `<div class="region-head"><b>${name}</b><button type="button">alles</button></div><div class="chips"></div>`;
-      const chips = sec.querySelector(".chips");
-      for (const c of list) {
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "chip"; b.dataset.key = c.key; b.textContent = c.name;
-        b.onclick = () => { S.selected.has(c.key) ? S.selected.delete(c.key) : S.selected.add(c.key); syncMenu(); };
-        chips.appendChild(b);
+    const all = [...S.items.values()];
+    const regionName = (id) => (REGIONS.find((r) => r[0] === id) || [id, ""])[1];
+    for (const [kind, meta] of Object.entries(KINDS)) {
+      const items = all.filter((c) => c.kind === kind);
+      if (!items.length) continue;
+      const det = document.createElement("details");
+      det.className = "kind"; det.dataset.kind = kind;
+      det.open = kind === "land";
+      det.innerHTML = `<summary><b>${meta.label}</b> <span class="pill kind-count"></span></summary>`;
+      // landen en steden per regio, de rest in één blok
+      const groups = kind === "land" || kind === "stad"
+        ? REGIONS.map(([id]) => [id, items.filter((c) => c.region === id)]).filter(([, l]) => l.length)
+        : [[kind, items]];
+      for (const [id, list] of groups) {
+        const sec = document.createElement("div");
+        sec.className = "region";
+        const title = groups.length > 1 ? regionName(id) : "";
+        sec.innerHTML = `<div class="region-head"><b>${title}</b><button type="button">alles</button></div><div class="chips"></div>`;
+        const chips = sec.querySelector(".chips");
+        for (const c of list.sort((a, b) => a.name.localeCompare(b.name, "nl"))) {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "chip"; b.dataset.key = c.key; b.textContent = c.name;
+          b.onclick = () => { S.selected.has(c.key) ? S.selected.delete(c.key) : S.selected.add(c.key); syncMenu(); };
+          chips.appendChild(b);
+        }
+        sec.querySelector(".region-head button").onclick = () => {
+          const allOn = list.every((c) => S.selected.has(c.key));
+          list.forEach((c) => (allOn ? S.selected.delete(c.key) : S.selected.add(c.key)));
+          syncMenu();
+        };
+        det.appendChild(sec);
       }
-      const rb = sec.querySelector(".region-head button");
-      rb.onclick = () => {
-        const allOn = list.every((c) => S.selected.has(c.key));
-        list.forEach((c) => (allOn ? S.selected.delete(c.key) : S.selected.add(c.key)));
-        syncMenu();
-      };
-      sec.dataset.region = id;
-      box.appendChild(sec);
+      box.appendChild(det);
     }
     document.querySelectorAll("[data-preset]").forEach((b) => (b.onclick = () => {
-      const p = b.dataset.preset, all = [...S.countries.values()];
-      S.selected = new Set(p === "all" ? all.filter((c) => c.region !== "kaukasus").map((c) => c.key)
-        : p === "eu" ? all.filter((c) => c.eu).map((c) => c.key) : []);
+      const p = b.dataset.preset;
+      const keys = p === "land" ? all.filter((c) => c.kind === "land" && c.region !== "kaukasus").map((c) => c.key)
+        : p === "eu" ? all.filter((c) => c.kind === "land" && c.eu).map((c) => c.key)
+        : p === "water" ? all.filter((c) => WATER.has(c.kind)).map((c) => c.key)
+        : S.presets[p] ? S.presets[p].filter((k) => S.items.has(k)) : [];
+      S.selected = new Set(keys);
+      // klap de soorten open die in deze selectie zitten
+      const kinds = new Set(keys.map((k) => S.items.get(k).kind));
+      document.querySelectorAll("#regions details.kind").forEach((d) => { if (kinds.has(d.dataset.kind)) d.open = true; });
       syncMenu();
     }));
     const modeInput = document.querySelector(`input[name="mode"][value="${S.mode}"]`);
@@ -774,10 +877,17 @@
       sec.querySelector(".region-head button").textContent = keys.every((k) => S.selected.has(k)) ? "geen" : "alles";
     });
     $("#sel-count").textContent = S.selected.size;
+    document.querySelectorAll("#regions details.kind").forEach((d) => {
+      const keys = [...d.querySelectorAll(".chip")].map((b) => b.dataset.key);
+      const n = keys.filter((k) => S.selected.has(k)).length;
+      d.querySelector(".kind-count").textContent = `${n}/${keys.length}`;
+      d.querySelector(".kind-count").classList.toggle("zero", !n);
+    });
     const explore = S.mode === "explore";
     const start = $("#btn-start");
     start.disabled = !explore && S.selected.size === 0;
-    start.textContent = explore ? "Rondvliegen ✈️" : S.selected.size ? `Opstijgen! ${S.selected.size} landen ✈️` : "Kies eerst landen";
+    const onlyLand = [...S.selected].every((k) => S.items.get(k)?.kind === "land");
+    start.textContent = explore ? "Rondvliegen ✈️" : S.selected.size ? `Opstijgen! ${S.selected.size} ${onlyLand ? "landen" : "vragen"} ✈️` : "Kies eerst wat je wilt oefenen";
     store.set("selected", [...S.selected]);
     const bestKey = `best:${S.mode}:${[...S.selected].sort().join(",")}`;
     const best = store.get(bestKey, 0);
@@ -789,6 +899,8 @@
     if (S.playing) return;
     gLand.selectAll(".country").classed("off", (c) => !S.selected.has(c.key));
     gMicro.selectAll(".micro-dot").classed("off", (c) => !S.selected.has(c.key));
+    root.selectAll(".sea, .lake, .river, .sea-dot").classed("sel", (c) => S.selected.has(c.key));
+    updateMapState();
   }
 
   // ---------- knoppen ----------

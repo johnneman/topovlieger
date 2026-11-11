@@ -1,6 +1,6 @@
 # ✈️ Topovlieger Europa
 
-Een webapp om topografie van Europa te oefenen als spel: je vliegt met een vliegtuigje van land naar land.
+Een webapp om topografie van Europa te oefenen als spel: je vliegt met een vliegtuigje naar landen, hoofdsteden, zeeën, rivieren, meren en gebergten.
 De app werkt in Safari op iPhone en iPad, en ook in elke andere moderne browser.
 
 ## Spelvormen
@@ -11,7 +11,8 @@ De app werkt in Safari op iPhone en iPad, en ook in elke andere moderne browser.
 | **Waar ben ik?** | Het vliegtuig landt ergens en jij kiest uit 4 namen welk land het is. |
 | **Rondvliegen** | Vrij oefenen: tik een land aan, vlieg erheen en zie de naam. |
 
-- **Landen kiezen:** per land, per regio (West-, Midden-, Noord-, Zuid-, Oost-Europa, Balkan, dwergstaten, Kaukasus) of snel met *Alles*, *EU-landen* of *Geen*.
+- **Wat oefen je?** 50 landen, hun hoofdsteden, 22 zeeën en zeestraten, 20 rivieren, 8 meren en 13 gebergten. Je kiest per onderwerp of per groep (regio, soort), of snel met **📝 Huiswerk Kaart A** (de 44 onderwerpen van Blink TopoMaster Europa – Kaart A), *Alle landen*, *EU-landen*, *Alle wateren* of *Geen*.
+- **Op de kaart:** rivieren zijn blauwe lijnen, gebergten bruine vlekken en hoofdsteden vierkantjes, net als op het werkblad. Bij *Vliegmissie* kun je alleen de soort aantikken waar de vraag over gaat. Zo raak je bij "Vlieg naar Duitsland" niet per ongeluk de Rijn.
 - **Punten:** 100 punten als het in één keer goed is, 60 bij de tweede poging en 30 bij de derde, plus een bonus voor een reeks goede antwoorden 🔥.
 - **Na afloop:** sterren, score, record per selectie en de knop **"Opnieuw"**. Had je fouten? Dan krijg je een oefenronde met je foute landen plus evenveel andere landen uit je selectie, elk één keer. Zonder fouten speel je de hele selectie opnieuw. Een oefenronde telt niet mee voor het record.
 - **Kaart:** knijpen om te zoomen, slepen om te schuiven. Er zijn ook knoppen voor +, − en de hele kaart. Dwergstaten (Andorra, Monaco, San Marino, Vaticaanstad, Liechtenstein, Malta) hebben een rondje zodat je ze goed kunt aantikken.
@@ -46,7 +47,7 @@ docker run -d --name topovlieger --restart unless-stopped -p 8080:80 topovlieger
 ## Techniek
 
 - Een statische site (HTML, CSS en JavaScript) die nginx in de container serveert. Er is geen backend en de app gebruikt geen internet: alles, ook de kaart en de D3-bibliotheek, zit in de container.
-- De kaartdata komt uit Natural Earth 1:50m (publiek domein), via `world-atlas`. Zo bouw je `public/data/europe.json` opnieuw:
+- De landen komen uit Natural Earth 1:50m (publiek domein), via `world-atlas`. Zo bouw je `public/data/europe.json` opnieuw:
 
   ```bash
   cd topografie-europa
@@ -55,6 +56,13 @@ docker run -d --name topovlieger --restart unless-stopped -p 8080:80 topovlieger
   ```
 
   In `tools/build-data.mjs` staan de Nederlandse namen, de regio-indeling en de landingspunten van het vliegtuig. Een land toevoegen of de indeling aanpassen doe je daar.
+
+- Zeeën, rivieren, meren, gebergten en hoofdsteden komen uit Natural Earth 1:10m en staan in `public/data/topo.json`. Een onderwerp toevoegen doe je in de lijsten in `tools/build-topo.mjs`, daar staat ook de huiswerkset. Opnieuw bouwen (Node is niet nodig op de server):
+
+  ```bash
+  docker run --rm -v "$PWD":/w -w /w node:22-alpine node tools/build-topo.mjs
+  docker compose up -d --build
+  ```
 
 ## Grappige extra's bij landing
 

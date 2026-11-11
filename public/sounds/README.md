@@ -5,10 +5,10 @@ Een land zonder eigen geluidje krijgt het grapje uit `public/data/grapjes.json`,
 
 ## Zo noem je het bestand
 
-Gebruik de landnaam of de landcode, bijvoorbeeld:
+Gebruik de naam (of bij een land de landcode), bijvoorbeeld:
 
 - `frankrijk.m4a` of `FR.mp3`
-- `verenigd-koninkrijk.mp3`
+- `verenigd-koninkrijk.mp3`, `rijn.m4a`, `noordzee.m4a`, `alpen.m4a`, `parijs.m4a`
 - meer dan één geluidje voor hetzelfde land: `frankrijk-2.m4a`, `frankrijk-3.m4a`. Het spel kiest er dan willekeurig één.
 
 Hoofdletters, accenten en spaties maken niet uit: `België.m4a`, `belgie.m4a` en `BE.m4a` werken alle drie.
@@ -26,7 +26,11 @@ cd ~/claude-workspace/topovlieger && git pull
 
 Herlaad daarna de pagina in Safari.
 
-## Alle landen
+## Alle namen
+
+Steden met dezelfde naam als hun land (Luxemburg, Monaco, San Marino, Vaticaanstad) krijgen het voorvoegsel `stad-`, bijvoorbeeld `stad-luxemburg.m4a`. Het voorvoegsel mag ook bij alle andere onderwerpen: `rivier-rijn.m4a` werkt net zo goed als `rijn.m4a`.
+
+### Landen
 
 | Land | Bestandsnaam | Code |
 |---|---|---|
@@ -80,3 +84,141 @@ Herlaad daarna de pagina in Safari.
 | Wit-Rusland | `wit-rusland` | `BY` |
 | Zweden | `zweden` | `SE` |
 | Zwitserland | `zwitserland` | `CH` |
+
+### Zeeën, zeestraten en oceanen
+
+| Naam | Bestandsnaam |
+|---|---|
+| Adriatische Zee | `adriatische-zee` |
+| Atlantische Oceaan | `atlantische-oceaan` |
+| Barentszzee | `barentszzee` |
+| Bosporus | `bosporus` |
+| Botnische Golf | `botnische-golf` |
+| Egeïsche Zee | `egeische-zee` |
+| Finse Golf | `finse-golf` |
+| Golf van Biskaje | `golf-van-biskaje` |
+| Het Kanaal | `het-kanaal` |
+| Ierse Zee | `ierse-zee` |
+| Kaspische Zee | `kaspische-zee` |
+| Kattegat | `kattegat` |
+| Middellandse Zee | `middellandse-zee` |
+| Noordelijke IJszee | `noordelijke-ijszee` |
+| Noordzee | `noordzee` |
+| Noorse Zee | `noorse-zee` |
+| Oostzee | `oostzee` |
+| Skagerrak | `skagerrak` |
+| Straat van Gibraltar | `straat-van-gibraltar` |
+| Waddenzee | `waddenzee` |
+| Zee van Azov | `zee-van-azov` |
+| Zwarte Zee | `zwarte-zee` |
+
+### Rivieren
+
+| Naam | Bestandsnaam |
+|---|---|
+| Dnjepr | `dnjepr` |
+| Don | `don` |
+| Donau | `donau` |
+| Ebro | `ebro` |
+| Elbe | `elbe` |
+| Garonne | `garonne` |
+| IJssel | `ijssel` |
+| Loire | `loire` |
+| Maas | `maas` |
+| Moezel | `moezel` |
+| Oder | `oder` |
+| Po | `po` |
+| Rhône | `rhone` |
+| Rijn | `rijn` |
+| Schelde | `schelde` |
+| Seine | `seine` |
+| Taag | `taag` |
+| Theems | `theems` |
+| Weichsel | `weichsel` |
+| Wolga | `wolga` |
+
+### Meren
+
+| Naam | Bestandsnaam |
+|---|---|
+| Balatonmeer | `balatonmeer` |
+| Bodenmeer | `bodenmeer` |
+| Gardameer | `gardameer` |
+| IJsselmeer | `ijsselmeer` |
+| Ladogameer | `ladogameer` |
+| Meer van Genève | `meer-van-geneve` |
+| Onegameer | `onegameer` |
+| Vänern | `vanern` |
+
+### Gebergten
+
+| Naam | Bestandsnaam |
+|---|---|
+| Alpen | `alpen` |
+| Apennijnen | `apennijnen` |
+| Ardennen | `ardennen` |
+| Balkangebergte | `balkangebergte` |
+| Cantabrisch Gebergte | `cantabrisch-gebergte` |
+| Dinarische Alpen | `dinarische-alpen` |
+| Jura | `jura` |
+| Karpaten | `karpaten` |
+| Kaukasus | `kaukasus` |
+| Oeral | `oeral` |
+| Pyreneeën | `pyreneeen` |
+| Scandinavisch Hoogland | `scandinavisch-hoogland` |
+| Vogezen | `vogezen` |
+
+### Hoofdsteden
+
+| Naam | Bestandsnaam |
+|---|---|
+| Amsterdam | `amsterdam` |
+| Andorra la Vella | `andorra-la-vella` |
+| Ankara | `ankara` |
+| Athene | `athene` |
+| Bakoe | `bakoe` |
+| Belgrado | `belgrado` |
+| Berlijn | `berlijn` |
+| Bern | `bern` |
+| Boedapest | `boedapest` |
+| Boekarest | `boekarest` |
+| Bratislava | `bratislava` |
+| Brussel | `brussel` |
+| Chisinau | `chisinau` |
+| Dublin | `dublin` |
+| Helsinki | `helsinki` |
+| Jerevan | `jerevan` |
+| Kopenhagen | `kopenhagen` |
+| Kyiv | `kyiv` |
+| Lissabon | `lissabon` |
+| Ljubljana | `ljubljana` |
+| Londen | `londen` |
+| Madrid | `madrid` |
+| Minsk | `minsk` |
+| Moskou | `moskou` |
+| Nicosia | `nicosia` |
+| Oslo | `oslo` |
+| Parijs | `parijs` |
+| Podgorica | `podgorica` |
+| Praag | `praag` |
+| Pristina | `pristina` |
+| Reykjavik | `reykjavik` |
+| Riga | `riga` |
+| Rome | `rome` |
+| Sarajevo | `sarajevo` |
+| Skopje | `skopje` |
+| Sofia | `sofia` |
+| Luxemburg | `stad-luxemburg` |
+| Monaco | `stad-monaco` |
+| San Marino | `stad-san-marino` |
+| Vaticaanstad | `stad-vaticaanstad` |
+| Stockholm | `stockholm` |
+| Tallinn | `tallinn` |
+| Tbilisi | `tbilisi` |
+| Tirana | `tirana` |
+| Vaduz | `vaduz` |
+| Valletta | `valletta` |
+| Vilnius | `vilnius` |
+| Warschau | `warschau` |
+| Wenen | `wenen` |
+| Zagreb | `zagreb` |

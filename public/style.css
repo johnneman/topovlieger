@@ -59,6 +59,52 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .micro-dot.reveal { animation: pulse .6s ease-in-out infinite alternate; }
 .micro-hit { fill: transparent; }
 
+/* --- zeeën, meren, rivieren, gebergten, steden --- */
+.sea { fill: transparent; stroke: none; pointer-events: none; }
+.sea.sel { fill: #6fb3e6; fill-opacity: .35; }
+.lake { fill: var(--sea); stroke: #6aa7d6; stroke-width: .6; vector-effect: non-scaling-stroke; pointer-events: none; }
+.lake.sel { fill: #6fb3e6; }
+.river { fill: none; stroke: #3d8fd8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.river.sel { stroke: #1f6feb; }
+.river-hit { fill: none; stroke: transparent; stroke-linecap: round; pointer-events: none; }
+.mount { fill: #c79a6b; fill-opacity: 0; stroke: none; pointer-events: none; transition: fill-opacity .3s; }
+.mount.shown { fill-opacity: .5; }
+.city-g { display: none; }
+.city-g.shown { display: inline; }
+.city { fill: #1f2a37; stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.city-hit { fill: transparent; pointer-events: none; }
+.dot-zee { display: none; }
+.dot-zee.shown { display: inline; }
+.sea-dot { fill: #6fb3e6; fill-opacity: .6; stroke: #1f6feb; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.dot-zee .micro-hit { pointer-events: none; }
+
+/* aantikbaar alleen als die soort meedoet (zie updateMapState) */
+#map.act-zee .sea, #map.act-zee .dot-zee .micro-hit { pointer-events: fill; }
+#map.act-meer .lake { pointer-events: fill; }
+#map.act-rivier .river-hit { pointer-events: stroke; }
+#map.act-berg .mount.shown { pointer-events: fill; }
+#map.act-stad .city-hit { pointer-events: fill; }
+
+/* toestanden: zelfde betekenis als bij landen */
+.sea.ok, .lake.ok, .mount.ok, .sea-dot.ok { fill: var(--ok); fill-opacity: .75; }
+.sea.meh, .lake.meh, .mount.meh, .sea-dot.meh { fill: var(--meh); fill-opacity: .75; }
+.sea.miss, .lake.miss, .mount.miss, .sea-dot.miss { fill: var(--bad); fill-opacity: .5; }
+.sea.flash, .lake.flash, .mount.flash, .sea-dot.flash { fill: var(--bad); fill-opacity: .8; }
+.sea.target, .lake.target, .mount.target, .sea-dot.target { fill: var(--target); fill-opacity: .8; }
+.sea.picked, .lake.picked, .mount.picked, .sea-dot.picked { fill: #1f6feb; fill-opacity: .35; }
+.sea.reveal, .lake.reveal, .mount.reveal, .sea-dot.reveal { fill: var(--target); animation: pulse-fill .6s ease-in-out infinite alternate; }
+@keyframes pulse-fill { from { fill-opacity: .15; } to { fill-opacity: .85; } }
+.river.ok { stroke: var(--ok); } .river.meh { stroke: var(--meh); } .river.miss { stroke: var(--bad); }
+.river.flash { stroke: var(--bad); } .river.target, .river.reveal { stroke: var(--target); } .river.picked { stroke: #0b4fb3; }
+.river.ok, .river.meh, .river.miss, .river.flash, .river.target, .river.reveal, .river.picked { stroke-width: 4px; vector-effect: non-scaling-stroke; }
+.river.reveal { animation: pulse-stroke .6s ease-in-out infinite alternate; }
+@keyframes pulse-stroke { from { stroke: #3d8fd8; } to { stroke: var(--target); } }
+.city.ok { fill: var(--ok); } .city.meh { fill: var(--meh); } .city.miss, .city.flash { fill: var(--bad); }
+.city.target, .city.reveal { fill: var(--target); } .city.picked { fill: #1f6feb; }
+.label.k-zee, .label.k-rivier, .label.k-meer { fill: #0b4fb3; font-style: italic; }
+.label.k-berg { fill: #7a4b1c; font-style: italic; }
+.label.k-stad { font-weight: 600; }
+
 .label {
   font-weight: 700; fill: var(--ink); text-anchor: middle; dominant-baseline: middle;
   paint-order: stroke; stroke: rgba(255,255,255,.9); stroke-linejoin: round;
@@ -92,6 +138,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #progress-text { font-size: 12px; color: var(--muted); margin-top: 3px; text-align: center; font-variant-numeric: tabular-nums; }
 .hud-stats { display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,.92); border-radius: 14px; padding: 5px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.18); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
 #streak.hot { color: #d9480f; }
+
+details.kind { border-top: 1px solid #e3e8ee; padding: 6px 0; }
+details.kind > summary { cursor: pointer; padding: 6px 0; font-size: 16px; list-style: none; display: flex; align-items: center; gap: 8px; }
+details.kind > summary::-webkit-details-marker { display: none; }
+details.kind > summary::before { content: "▸"; color: var(--muted); transition: transform .2s; }
+details.kind[open] > summary::before { transform: rotate(90deg); }
+.pill.kind-count.zero { opacity: .45; }
+.presets .homework { font-weight: 700; }
 
 #zoom-ctl { position: absolute; right: 12px; top: calc(var(--safe-t) + 80px); display: flex; flex-direction: column; gap: 8px; }
 
