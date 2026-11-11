@@ -19,6 +19,16 @@
   };
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Foutzoeken: open de app met ?debug, dan komt elke geluidsstap in de nginx-log (/diag?...).
+  const DEBUG = /[?&]debug\b/.test(location.search);
+  function dbg(t, x = "") {
+    if (!DEBUG) return;
+    try {
+      const q = new URLSearchParams({ t, x: String(x), actx: actx ? actx.state : "-", sound: S.sound, fun: S.fun, speak: S.speak,
+        session: navigator.audioSession ? navigator.audioSession.type : "-", vis: document.visibilityState });
+      new Image().src = "diag?" + q;
+    } catch { /* niets */ }
+  }
 
   // ---------- staat ----------
   const S = {
@@ -48,7 +58,7 @@
     } catch { /* geen audio */ }
   }
   const sfx = {
-    ok() { tone(660, 0.15, "triangle"); tone(880, 0.25, "triangle", 0.15, 0.12); tone(1320, 0.3, "triangle", 0.1, 0.24); },
+    ok() { dbg("beep-ok"); tone(660, 0.15, "triangle"); tone(880, 0.25, "triangle", 0.15, 0.12); tone(1320, 0.3, "triangle", 0.1, 0.24); },
     bad() { tone(200, 0.3, "square", 0.06); tone(150, 0.35, "square", 0.05, 0.12); },
     fly() { tone(320, 0.25, "sawtooth", 0.025); },
     end() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, "triangle", 0.12, i * 0.12)); },
@@ -100,6 +110,12 @@
     try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch { /* ouder iOS */ }
   }
   setAudioSession();
+  // Terug naar het tabblad: geluid opnieuw aanzetten.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !actx) return;
+    setAudioSession();
+    actx.suspend().then(() => actx.resume()).catch(() => {});
+  });
 
   // Reserve: gewone <audio>-speler, ontgrendeld tijdens de starttik.
   const funAudio = new Audio();
@@ -123,8 +139,13 @@
   }
 
   async function playSoundFile(url) {
-    try { return await playWithWebAudio(url); }
-    catch (e) { console.warn("Web Audio lukt niet, probeer <audio>", e); return playWithAudioElement(url); }
+    try { const r = await playWithWebAudio(url); dbg("webaudio-klaar", url); return r; }
+    catch (e) {
+      dbg("webaudio-fout", (e && e.name) + " " + (e && e.message));
+      console.warn("Web Audio lukt niet, probeer <audio>", e);
+      try { const r = await playWithAudioElement(url); dbg("audio-el-klaar", url); return r; }
+      catch (e2) { dbg("audio-el-fout", (e2 && e2.name) + " " + (e2 && e2.message)); throw e2; }
+    }
   }
 
   async function playWithWebAudio(url) {
@@ -144,6 +165,7 @@
       src.onended = () => resolve();
       funSrc = src;
       src.start();
+      dbg("webaudio-start", `${url} duur=${buf.duration.toFixed(2)} sr=${actx.sampleRate}`);
     });
   }
 
@@ -178,6 +200,7 @@
     if (!S.fun) return Promise.resolve();
     const text = FUN.jokes[key];
     const urls = FUN.sounds.get(key);
+    dbg("fun", `${key} urls=${urls ? urls.join("|") : "-"} text=${!!text} canSpeak=${canSpeak()}`);
     if (!text && !urls) return Promise.resolve();
     stopFun();
     const token = funToken;
@@ -435,9 +458,14 @@
     svg.call(zoom.transform, d3.zoomIdentity);
     stopFun(); hideFun();
     setAudioSession();
+    // iOS kan een geluidskanaal na een onderbreking (telefoontje, andere app, lang op de
+    // achtergrond) op "running" laten staan terwijl er niets meer uitkomt. Daarom bij elke
+    // start (tijdens de tik, dus toegestaan) een vers kanaal. AudioBuffers blijven bruikbaar.
+    if (actx) { try { actx.close(); } catch { /* al dicht */ } actx = null; }
     tone(1, 0.01); // iOS: audio ontgrendelen tijdens tik
     if (S.fun && S.sound) unlockFunAudio();
     unlockSpeech();
+    dbg("start", `mode=${S.mode} sounds=${[...FUN.sounds.keys()].join(",")} ua=${navigator.userAgent}`);
     updateHud();
     if (S.mode === "explore") {
       $("#prompt-label").textContent = "Rondvliegen";
