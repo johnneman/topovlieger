@@ -204,12 +204,21 @@
     if (!text && !urls) return Promise.resolve();
     stopFun();
     const token = funToken;
-    if (text) showFun(text);
-    const readMs = text ? Math.min(FUN_MAX_MS, 1500 + text.length * 30) : 0;
+    const ownSound = S.sound && urls;
+    const textMs = text ? Math.min(FUN_MAX_MS, 1500 + text.length * 30) : 0;
+    // Eigen geluidje: géén tekstwolkje (wat je zelf inspreekt is iets anders dan de tekst).
+    if (text && !ownSound) showFun(text);
+    let readMs = ownSound ? 0 : textMs;
     let done;
-    if (S.sound && urls) {
+    if (ownSound) {
       done = playSoundFile(urls[Math.random() * urls.length | 0])
-        .catch((e) => { console.warn("Geluidje mislukt", e); return S.speak && text && canSpeak() ? speak(text) : wait(readMs); });
+        .catch((e) => {
+          // Mislukt toch? Dan alsnog de tekst tonen (en voorlezen).
+          console.warn("Geluidje mislukt", e);
+          if (!text || token !== funToken) return;
+          showFun(text);
+          return S.speak && canSpeak() ? speak(text) : wait(textMs);
+        });
     } else if (S.sound && S.speak && text && canSpeak()) done = speak(text);
     else done = wait(readMs);
     // Klaar als het geluid op is én de tekst lang genoeg in beeld stond om te lezen (max. FUN_MAX_MS).
@@ -437,11 +446,38 @@
   }
 
   // ---------- spel ----------
-  function startGame(keys) {
+  /** Vragenlijst: elk land één keer, plus extra beurten voor landen uit `boost` ({key: aantal}).
+   *  Hetzelfde land komt nooit twee keer direct achter elkaar. */
+  function buildQueue(pool, boost = {}) {
+    const left = new Map(pool.map((k) => [k, 1]));
+    for (const [key, n] of Object.entries(boost)) if (left.has(key)) left.set(key, 1 + n);
+    let total = [...left.values()].reduce((a, b) => a + b, 0);
+    const out = [];
+    while (total > 0) {
+      const last = out[out.length - 1];
+      const keys = [...left.keys()];
+      // Moet een land nu al, anders lukt "nooit twee keer achter elkaar" niet meer? Dan dat land.
+      let pick = keys.find((k) => k !== last && left.get(k) * 2 > total);
+      if (!pick) {
+        const cand = keys.filter((k) => k !== last);
+        const list = cand.length ? cand : keys; // alleen nog hetzelfde land over: onvermijdelijk
+        // willekeurig, gewogen naar hoeveel beurten een land nog heeft
+        let r = Math.random() * list.reduce((a, k) => a + left.get(k), 0);
+        pick = list.find((k) => (r -= left.get(k)) < 0) || list[list.length - 1];
+      }
+      out.push(pick);
+      total--;
+      if (left.get(pick) === 1) left.delete(pick); else left.set(pick, left.get(pick) - 1);
+    }
+    return out;
+  }
+
+  function startGame(keys, boost = {}) {
     S.mode = document.querySelector('input[name="mode"]:checked').value;
     const pool = keys || [...S.selected];
     if (S.mode !== "explore" && !pool.length) return;
-    S.queue = shuffle(pool);
+    S.boosted = Object.keys(boost).length > 0;
+    S.queue = buildQueue(pool, boost);
     S.idx = 0; S.score = 0; S.streak = 0; S.bestStreak = 0; S.results = [];
     S.playing = true; S.busy = false;
     S.lastPool = pool;
@@ -670,14 +706,22 @@
 
     const bestKey = `best:${S.mode}:${S.lastPool.slice().sort().join(",")}`;
     const prev = store.get(bestKey, 0);
-    if (S.score > prev) store.set(bestKey, S.score);
-    $("#res-best").textContent = S.score > prev && prev > 0 ? `🏆 Nieuw record! (vorige: ${prev})` : prev ? `Record voor deze selectie: ${Math.max(prev, S.score)}` : "";
+    if (S.boosted) {
+      // Met extra herhaling heb je meer vragen en dus meer punten: telt niet mee voor het record.
+      $("#res-best").textContent = "Oefenronde met extra herhaling: telt niet mee voor het record";
+    } else {
+      if (S.score > prev) store.set(bestKey, S.score);
+      $("#res-best").textContent = S.score > prev && prev > 0 ? `🏆 Nieuw record! (vorige: ${prev})` : prev ? `Record voor deze selectie: ${Math.max(prev, S.score)}` : "";
+    }
 
-    const wrong = S.results.filter((r) => r.tries > 0);
-    S.practice = wrong.map((r) => r.key);
-    $("#res-mistakes-wrap").classList.toggle("hidden", !wrong.length);
-    $("#res-mistakes").innerHTML = wrong.map((r) => `<span class="chip">${S.countries.get(r.key).name}</span>`).join("");
-    $("#btn-practice").classList.toggle("hidden", !wrong.length);
+    // Foutjes komen in de volgende ronde vaker terug: 1 extra keer als je het na een
+    // foute poging vond, 2 extra keer als het land aangewezen moest worden.
+    S.boost = {};
+    for (const r of S.results) if (r.tries > 0) S.boost[r.key] = Math.max(S.boost[r.key] || 0, r.missed ? 2 : 1);
+    const wrongKeys = Object.keys(S.boost);
+    $("#res-mistakes-wrap").classList.toggle("hidden", !wrongKeys.length);
+    $("#res-mistakes").innerHTML = wrongKeys.map((k) => `<span class="chip">${S.countries.get(k).name}</span>`).join("");
+    $("#btn-again").textContent = wrongKeys.length ? "Opnieuw 🔁 (foutjes komen vaker terug)" : "Opnieuw 🔁";
     $("#result").classList.remove("hidden");
     $("#hud").classList.add("hidden");
     $("#zoom-ctl").classList.add("hidden");
@@ -777,8 +821,7 @@
   $("#btn-start").onclick = () => startGame();
   $("#btn-stop").onclick = () => toMenu();
   $("#btn-menu").onclick = () => toMenu();
-  $("#btn-again").onclick = () => startGame(S.lastPool);
-  $("#btn-practice").onclick = () => startGame(S.practice);
+  $("#btn-again").onclick = () => startGame(S.lastPool, S.boost);
   $("#zoom-in").onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1.6);
   $("#zoom-out").onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.6);
   $("#zoom-reset").onclick = () => svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity);

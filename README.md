@@ -13,7 +13,7 @@ De app werkt in Safari op iPhone en iPad, en ook in elke andere moderne browser.
 
 - **Landen kiezen:** per land, per regio (West-, Midden-, Noord-, Zuid-, Oost-Europa, Balkan, dwergstaten, Kaukasus) of snel met *Alles*, *EU-landen* of *Geen*.
 - **Punten:** 100 punten als het in één keer goed is, 60 bij de tweede poging en 30 bij de derde, plus een bonus voor een reeks goede antwoorden 🔥.
-- **Na afloop:** sterren, score, record per selectie en de knop **"Oefen deze landen"** om alleen je fouten opnieuw te doen.
+- **Na afloop:** sterren, score, record per selectie en de knop **"Opnieuw"**. Die speelt dezelfde landen nog een keer, maar je foutjes komen vaker terug: 1 extra keer als je het land na een foute poging vond, 2 extra keer als het aangewezen moest worden. Zo'n oefenronde telt niet mee voor het record.
 - **Kaart:** knijpen om te zoomen, slepen om te schuiven. Er zijn ook knoppen voor +, − en de hele kaart. Dwergstaten (Andorra, Monaco, San Marino, Vaticaanstad, Liechtenstein, Malta) hebben een rondje zodat je ze goed kunt aantikken.
 - Je keuzes en records worden lokaal in de browser bewaard.
 
