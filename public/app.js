@@ -83,6 +83,7 @@
     funToken++;
     try { if (funSrc) funSrc.stop(); } catch { /* al gestopt */ }
     funSrc = null;
+    try { funAudio.onended = funAudio.onerror = null; funAudio.pause(); } catch { /* niets */ }
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch { /* geen spraak */ }
   }
   function hideFun() { clearTimeout(funHideTimer); $("#fun").classList.remove("show"); }
@@ -93,9 +94,43 @@
     el.classList.add("show");
   }
 
+  // iOS: zonder dit valt Web Audio onder de stille modus (schuifje/actieknop), terwijl de
+  // voorleesstem gewoon doorgaat. "playback" = gedraag je als mediaspeler.
+  function setAudioSession() {
+    try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch { /* ouder iOS */ }
+  }
+  setAudioSession();
+
+  // Reserve: gewone <audio>-speler, ontgrendeld tijdens de starttik.
+  const funAudio = new Audio();
+  funAudio.preload = "auto";
+  let funAudioUnlocked = false;
+  function unlockFunAudio() {
+    if (funAudioUnlocked) return;
+    funAudioUnlocked = true;
+    // Een leeg wav-bestand afspelen tijdens de tik; daarna mag dit element later zelf starten.
+    funAudio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+    const p = funAudio.play(); if (p && p.catch) p.catch(() => {});
+  }
+  function playWithAudioElement(url) {
+    return new Promise((resolve, reject) => {
+      funAudio.onended = () => resolve();
+      funAudio.onerror = () => reject(new Error("audio-element"));
+      funAudio.src = url;
+      const p = funAudio.play();
+      if (p && p.catch) p.catch(reject);
+    });
+  }
+
   async function playSoundFile(url) {
+    try { return await playWithWebAudio(url); }
+    catch (e) { console.warn("Web Audio lukt niet, probeer <audio>", e); return playWithAudioElement(url); }
+  }
+
+  async function playWithWebAudio(url) {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === "suspended") actx.resume();
+    if (actx.state !== "running") await Promise.race([actx.resume(), wait(500)]);
+    if (actx.state !== "running") throw new Error("AudioContext " + actx.state);
     let buf = FUN.buffers.get(url);
     if (!buf) {
       const data = await fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
@@ -398,9 +433,11 @@
     S.planeLL = START_LL;
     layout();
     svg.call(zoom.transform, d3.zoomIdentity);
-    tone(1, 0.01); // iOS: audio ontgrendelen tijdens tik
-    unlockSpeech();
     stopFun(); hideFun();
+    setAudioSession();
+    tone(1, 0.01); // iOS: audio ontgrendelen tijdens tik
+    if (S.fun && S.sound) unlockFunAudio();
+    unlockSpeech();
     updateHud();
     if (S.mode === "explore") {
       $("#prompt-label").textContent = "Rondvliegen";
