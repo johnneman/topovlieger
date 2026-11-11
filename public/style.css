@@ -3,7 +3,7 @@
   --sea-deep: #7dbbe6;
   --land: #f6eed9;
   --land-bg: #e4dfd3;
-  --border: #8d826c;
+  --border: #5e5241;
   --ok: #5cc46b;
   --meh: #f2b441;
   --bad: #e5534b;
@@ -37,9 +37,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   touch-action: none; display: block;
   background: radial-gradient(ellipse at 50% 40%, var(--sea) 0%, var(--sea-deep) 100%);
 }
-.bg-land { fill: var(--land-bg); stroke: #b9b2a3; stroke-width: .6; vector-effect: non-scaling-stroke; pointer-events: none; }
+.bg-land { fill: var(--land-bg); stroke: #a39b8a; stroke-width: .8; vector-effect: non-scaling-stroke; pointer-events: none; }
 .country {
-  fill: var(--land); stroke: var(--border); stroke-width: .8;
+  fill: var(--land); stroke: var(--border); stroke-width: 1.3;
   vector-effect: non-scaling-stroke; stroke-linejoin: round;
   transition: fill .25s;
 }
