@@ -28,7 +28,7 @@
     queue: [], idx: 0, target: null, tries: 0,
     score: 0, streak: 0, bestStreak: 0, results: [],
     planeLL: START_LL, busy: false, playing: false,
-    k: 1, labels: true, sound: true,
+    k: 1, labels: true, sound: true, fun: true, speak: true,
   };
 
   // ---------- geluid ----------
@@ -53,6 +53,112 @@
     fly() { tone(320, 0.25, "sawtooth", 0.025); },
     end() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, "triangle", 0.12, i * 0.12)); },
   };
+
+  // ---------- grappige extra's (weetjes + eigen geluidjes) ----------
+  const FUN = { jokes: {}, sounds: new Map(), buffers: new Map() };
+  const FUN_MAX_MS = 4500;
+  const AUDIO_EXT = /\.(m4a|mp3|wav|aac)$/i;
+  const slug = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+  async function loadFun() {
+    FUN.jokes = await fetch("data/grapjes.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+    // nginx geeft de inhoud van /sounds/ als JSON-lijst (autoindex_format json)
+    const files = await fetch("sounds/", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+    const lookup = new Map();
+    for (const c of S.countries.values()) { lookup.set(c.key.toLowerCase(), c.key); lookup.set(slug(c.name), c.key); }
+    for (const f of Array.isArray(files) ? files : []) {
+      if (f.type !== "file" || !AUDIO_EXT.test(f.name)) continue;
+      // "frankrijk-2.m4a" → "frankrijk", "FR.mp3" → "fr"
+      const base = slug(f.name.replace(AUDIO_EXT, "")).replace(/-\d+$/, "");
+      const key = lookup.get(base);
+      if (!key) continue;
+      if (!FUN.sounds.has(key)) FUN.sounds.set(key, []);
+      FUN.sounds.get(key).push("sounds/" + encodeURIComponent(f.name));
+    }
+  }
+
+  let funSrc = null, funHideTimer = 0, funToken = 0;
+  function stopFun() {
+    funToken++;
+    try { if (funSrc) funSrc.stop(); } catch { /* al gestopt */ }
+    funSrc = null;
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch { /* geen spraak */ }
+  }
+  function hideFun() { clearTimeout(funHideTimer); $("#fun").classList.remove("show"); }
+  function showFun(text) {
+    clearTimeout(funHideTimer);
+    const el = $("#fun");
+    el.textContent = text;
+    el.classList.add("show");
+  }
+
+  async function playSoundFile(url) {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    let buf = FUN.buffers.get(url);
+    if (!buf) {
+      const data = await fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
+      buf = await new Promise((ok, err) => { const p = actx.decodeAudioData(data, ok, err); if (p && p.catch) p.catch(err); });
+      FUN.buffers.set(url, buf);
+    }
+    return new Promise((resolve) => {
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      src.connect(actx.destination);
+      src.onended = () => resolve();
+      funSrc = src;
+      src.start();
+    });
+  }
+
+  function dutchVoice() {
+    try { return speechSynthesis.getVoices().find((v) => /^nl[-_]/i.test(v.lang)) || null; } catch { return null; }
+  }
+  function canSpeak() {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
+    // Geen Nederlandse stem (terwijl de stemmen wel geladen zijn)? Dan niet voorlezen.
+    const voices = speechSynthesis.getVoices();
+    return !voices.length || !!dutchVoice();
+  }
+  function speak(text) {
+    return new Promise((resolve) => {
+      const u = new SpeechSynthesisUtterance(text.replace(/…/g, "..."));
+      u.lang = "nl-NL";
+      const v = dutchVoice(); if (v) u.voice = v;
+      u.rate = 1.05; u.pitch = 1.15;
+      u.onend = u.onerror = () => resolve();
+      speechSynthesis.speak(u);
+    });
+  }
+  let speechUnlocked = false;
+  function unlockSpeech() {
+    // iOS: spraak mag alleen starten na een tik; spreek daarom één keer "niets" tijdens de tik.
+    if (speechUnlocked || !S.fun || !S.speak || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+    try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); speechUnlocked = true; } catch { /* geen spraak */ }
+  }
+
+  /** Grappige tekst + geluidje bij een landing. Resolvet als het klaar is (max. FUN_MAX_MS). */
+  function funLanding(key) {
+    if (!S.fun) return Promise.resolve();
+    const text = FUN.jokes[key];
+    const urls = FUN.sounds.get(key);
+    if (!text && !urls) return Promise.resolve();
+    stopFun();
+    const token = funToken;
+    if (text) showFun(text);
+    const readMs = text ? Math.min(FUN_MAX_MS, 1500 + text.length * 30) : 0;
+    let done;
+    if (S.sound && urls) {
+      done = playSoundFile(urls[Math.random() * urls.length | 0])
+        .catch((e) => { console.warn("Geluidje mislukt", e); return S.speak && text && canSpeak() ? speak(text) : wait(readMs); });
+    } else if (S.sound && S.speak && text && canSpeak()) done = speak(text);
+    else done = wait(readMs);
+    // Klaar als het geluid op is én de tekst lang genoeg in beeld stond om te lezen (max. FUN_MAX_MS).
+    return Promise.race([Promise.all([done, wait(readMs)]), wait(FUN_MAX_MS)]).then(() => {
+      if (token === funToken) funHideTimer = setTimeout(hideFun, 400);
+    });
+  }
 
   // ---------- kaart ----------
   const svg = d3.select("#map");
@@ -145,6 +251,9 @@
     S.mode = store.get("mode", "fly");
     S.labels = store.get("labels", true);
     S.sound = store.get("sound", true);
+    S.fun = store.get("fun", true);
+    S.speak = store.get("speak", true);
+    loadFun();
     buildMenu();
     layout();
     addEventListener("resize", () => layout());
@@ -290,6 +399,8 @@
     layout();
     svg.call(zoom.transform, d3.zoomIdentity);
     tone(1, 0.01); // iOS: audio ontgrendelen tijdens tik
+    unlockSpeech();
+    stopFun(); hideFun();
     updateHud();
     if (S.mode === "explore") {
       $("#prompt-label").textContent = "Rondvliegen";
@@ -365,6 +476,7 @@
     floatText(S.target, `+${pts}`);
     sfx.ok();
     toast(firstTime ? ["Top!", "Perfect geland!", "Goed zo!", "Uitstekend!"][Math.random() * 4 | 0] : "Gevonden!", "good", 1100);
+    return funLanding(S.target);
   }
 
   async function reveal() {
@@ -376,7 +488,7 @@
     toast(`Hier ligt ${c.name}`, "bad", 2200);
     ensureVisible(S.target);
     if (S.mode === "fly") { await wait(900); await flyTo(S.target); }
-    await wait(1300);
+    await Promise.all([wait(1300), funLanding(S.target)]);
     setClass(S.target, "reveal", false);
     setClass(S.target, "miss");
     if (S.labels) addLabel(S.target, "bad");
@@ -393,6 +505,7 @@
       $("#prompt-tries").textContent = REGIONS.find((r) => r[0] === c.region)[1] + (c.eu ? " · EU-lid" : "");
       await flyTo(key);
       addLabel(key, "", 1800);
+      funLanding(key); // niet wachten: je mag meteen verder tikken
       S.busy = false;
       return;
     }
@@ -400,9 +513,9 @@
     S.busy = true;
     await flyTo(key);
     if (key === S.target) {
-      scoreCorrect();
+      const fun = scoreCorrect();
       S.idx++;
-      await wait(850);
+      await Promise.all([wait(850), fun]);
     } else {
       S.tries++;
       S.streak = 0;
@@ -448,10 +561,10 @@
     if (key === S.target) {
       S.busy = true;
       btn.classList.add("ok");
-      scoreCorrect();
+      const fun = scoreCorrect();
       lockChoices();
       S.idx++;
-      await wait(1100);
+      await Promise.all([wait(1100), fun]);
     } else {
       btn.classList.add("bad"); btn.disabled = true;
       S.tries++; S.streak = 0;
@@ -475,6 +588,7 @@
 
   function finish() {
     S.playing = false;
+    hideFun();
     gPlane.style("opacity", null);
     updateHud();
     $("#progress-bar").style.width = "100%";
@@ -507,6 +621,7 @@
 
   function toMenu() {
     S.playing = false; S.busy = false;
+    stopFun(); hideFun();
     gPlane.style("opacity", null);
     $("#result").classList.add("hidden");
     $("#hud").classList.add("hidden");
@@ -558,6 +673,14 @@
     $("#opt-sound").checked = S.sound;
     $("#opt-labels").onchange = (e) => { S.labels = e.target.checked; store.set("labels", S.labels); };
     $("#opt-sound").onchange = (e) => { S.sound = e.target.checked; store.set("sound", S.sound); };
+    $("#opt-fun").checked = S.fun;
+    $("#opt-speak").checked = S.speak;
+    $("#opt-speak-wrap").classList.toggle("hidden", !S.fun);
+    $("#opt-fun").onchange = (e) => {
+      S.fun = e.target.checked; store.set("fun", S.fun);
+      $("#opt-speak-wrap").classList.toggle("hidden", !S.fun);
+    };
+    $("#opt-speak").onchange = (e) => { S.speak = e.target.checked; store.set("speak", S.speak); };
     syncMenu();
   }
 

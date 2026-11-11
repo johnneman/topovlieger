@@ -55,3 +55,15 @@ docker run -d --name topovlieger --restart unless-stopped -p 8080:80 topovlieger
   ```
 
   In `tools/build-data.mjs` staan de Nederlandse namen, de regio-indeling en de landingspunten van het vliegtuig. Een land toevoegen of de indeling aanpassen doe je daar.
+
+## Grappige extra's bij landing
+
+Landt het vliegtuig goed, dan verschijnt er een grappig wolkje over het land ("Ooh là là! Croissants…"). In Rondvliegen gebeurt dat bij elke landing, bij *Waar ben ik?* pas nadat je hebt geantwoord.
+
+- **Teksten:** staan in `public/data/grapjes.json`, één per landcode. Pas ze gerust aan. Daarna wel opnieuw bouwen (`docker compose up -d --build`).
+- **Eigen geluidjes:** zet ze in `public/sounds/`, bijvoorbeeld `frankrijk.m4a`. Zie [`public/sounds/README.md`](public/sounds/README.md) voor de namen. De map is als volume gekoppeld, dus `git pull` en de pagina herladen is genoeg.
+- Een land zonder eigen geluidje krijgt de tekst voorgelezen met een Nederlandse stem.
+- **Uitzetten** in het menu onder *Opties*:
+  - *Grappige extra's bij landing*: zet alles uit, dus tekst, geluidjes en voorlezen.
+  - *Voorlezen als er geen eigen geluidje is*: zet alleen de computerstem uit.
+  - *Geluid*: zet al het geluid uit. De tekstwolkjes blijven dan wel.
