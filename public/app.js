@@ -446,38 +446,15 @@
   }
 
   // ---------- spel ----------
-  /** Vragenlijst: elk land één keer, plus extra beurten voor landen uit `boost` ({key: aantal}).
-   *  Hetzelfde land komt nooit twee keer direct achter elkaar. */
-  function buildQueue(pool, boost = {}) {
-    const left = new Map(pool.map((k) => [k, 1]));
-    for (const [key, n] of Object.entries(boost)) if (left.has(key)) left.set(key, 1 + n);
-    let total = [...left.values()].reduce((a, b) => a + b, 0);
-    const out = [];
-    while (total > 0) {
-      const last = out[out.length - 1];
-      const keys = [...left.keys()];
-      // Moet een land nu al, anders lukt "nooit twee keer achter elkaar" niet meer? Dan dat land.
-      let pick = keys.find((k) => k !== last && left.get(k) * 2 > total);
-      if (!pick) {
-        const cand = keys.filter((k) => k !== last);
-        const list = cand.length ? cand : keys; // alleen nog hetzelfde land over: onvermijdelijk
-        // willekeurig, gewogen naar hoeveel beurten een land nog heeft
-        let r = Math.random() * list.reduce((a, k) => a + left.get(k), 0);
-        pick = list.find((k) => (r -= left.get(k)) < 0) || list[list.length - 1];
-      }
-      out.push(pick);
-      total--;
-      if (left.get(pick) === 1) left.delete(pick); else left.set(pick, left.get(pick) - 1);
-    }
-    return out;
-  }
-
-  function startGame(keys, boost = {}) {
+  /** keys: landen voor deze ronde (standaard de selectie uit het menu).
+   *  practice: oefenronde met foutjes; de oorspronkelijke set (S.basePool) blijft dan bewaard. */
+  function startGame(keys, practice = false) {
     S.mode = document.querySelector('input[name="mode"]:checked').value;
     const pool = keys || [...S.selected];
     if (S.mode !== "explore" && !pool.length) return;
-    S.boosted = Object.keys(boost).length > 0;
-    S.queue = buildQueue(pool, boost);
+    S.practiceRound = practice;
+    if (!practice) S.basePool = pool;
+    S.queue = shuffle(pool);
     S.idx = 0; S.score = 0; S.streak = 0; S.bestStreak = 0; S.results = [];
     S.playing = true; S.busy = false;
     S.lastPool = pool;
@@ -644,7 +621,7 @@
     const target = S.countries.get(S.target);
     // afleiders: liefst uit dezelfde regio en uit de selectie
     const others = [...S.countries.values()].filter((c) => c.key !== S.target);
-    const prefer = shuffle(others.filter((c) => c.region === target.region && (S.selected.has(c.key) || S.lastPool.includes(c.key))));
+    const prefer = shuffle(others.filter((c) => c.region === target.region && (S.selected.has(c.key) || (S.basePool || S.lastPool).includes(c.key))));
     const rest = shuffle(others.filter((c) => !prefer.includes(c)));
     const opts = shuffle([target, ...prefer.concat(rest).slice(0, 3)]);
     const box = $("#choices");
@@ -706,22 +683,19 @@
 
     const bestKey = `best:${S.mode}:${S.lastPool.slice().sort().join(",")}`;
     const prev = store.get(bestKey, 0);
-    if (S.boosted) {
-      // Met extra herhaling heb je meer vragen en dus meer punten: telt niet mee voor het record.
-      $("#res-best").textContent = "Oefenronde met extra herhaling: telt niet mee voor het record";
+    if (S.practiceRound) {
+      $("#res-best").textContent = "Oefenronde met je foutjes: telt niet mee voor het record";
     } else {
       if (S.score > prev) store.set(bestKey, S.score);
       $("#res-best").textContent = S.score > prev && prev > 0 ? `🏆 Nieuw record! (vorige: ${prev})` : prev ? `Record voor deze selectie: ${Math.max(prev, S.score)}` : "";
     }
 
-    // Foutjes komen in de volgende ronde vaker terug: 1 extra keer als je het na een
-    // foute poging vond, 2 extra keer als het land aangewezen moest worden.
-    S.boost = {};
-    for (const r of S.results) if (r.tries > 0) S.boost[r.key] = Math.max(S.boost[r.key] || 0, r.missed ? 2 : 1);
-    const wrongKeys = Object.keys(S.boost);
+    // Foutjes: bij "Opnieuw" komen ze terug, gemixt met evenveel andere landen uit de oorspronkelijke set.
+    S.mistakes = [...new Set(S.results.filter((r) => r.tries > 0).map((r) => r.key))];
+    const wrongKeys = S.mistakes;
     $("#res-mistakes-wrap").classList.toggle("hidden", !wrongKeys.length);
     $("#res-mistakes").innerHTML = wrongKeys.map((k) => `<span class="chip">${S.countries.get(k).name}</span>`).join("");
-    $("#btn-again").textContent = wrongKeys.length ? "Opnieuw 🔁 (foutjes komen vaker terug)" : "Opnieuw 🔁";
+    $("#btn-again").textContent = wrongKeys.length ? "Opnieuw 🔁 (je foutjes + andere landen)" : "Opnieuw 🔁";
     $("#result").classList.remove("hidden");
     $("#hud").classList.add("hidden");
     $("#zoom-ctl").classList.add("hidden");
@@ -821,7 +795,12 @@
   $("#btn-start").onclick = () => startGame();
   $("#btn-stop").onclick = () => toMenu();
   $("#btn-menu").onclick = () => toMenu();
-  $("#btn-again").onclick = () => startGame(S.lastPool, S.boost);
+  $("#btn-again").onclick = () => {
+    const base = S.basePool || S.lastPool;
+    if (!S.mistakes || !S.mistakes.length) return startGame(base);
+    const others = shuffle(base.filter((k) => !S.mistakes.includes(k))).slice(0, S.mistakes.length);
+    startGame([...S.mistakes, ...others], true);
+  };
   $("#zoom-in").onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1.6);
   $("#zoom-out").onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.6);
   $("#zoom-reset").onclick = () => svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity);
