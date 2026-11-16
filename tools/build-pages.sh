@@ -10,7 +10,7 @@ rm -rf "$OUT"
 cp -r public "$OUT"
 touch "$OUT/.nojekyll"
 
-python3 - "$OUT" <<'PY'
+SITE_VERSION="$(git rev-parse --short HEAD 2>/dev/null || date +%s)" python3 - "$OUT" <<'PY'
 import json, os, sys
 out = sys.argv[1]
 
@@ -19,6 +19,15 @@ snd = os.path.join(out, "sounds")
 names = sorted(f for f in os.listdir(snd) if f.lower().endswith((".m4a", ".mp3", ".wav", ".aac")))
 with open(os.path.join(snd, "index.json"), "w", encoding="utf-8") as f:
     json.dump([{"name": n, "type": "file"} for n in names], f, ensure_ascii=False)
+
+# Versienummer achter style.css en app.js: na een wijziging haalt elke browser meteen de
+# nieuwe versie op (GitHub Pages laat browsers bestanden anders 10 minuten bewaren).
+ver = os.environ.get("SITE_VERSION", "dev")
+idx = os.path.join(out, "index.html")
+html = open(idx, encoding="utf-8").read()
+assert 'href="style.css"' in html and 'src="app.js"' in html
+html = html.replace('href="style.css"', f'href="style.css?v={ver}"').replace('src="app.js"', f'src="app.js?v={ver}"')
+open(idx, "w", encoding="utf-8").write(html)
 
 # /geluidjes/: zelfde index.html, maar met <base href="../"> (alle bestanden komen uit de hoofdmap)
 # en een vlag die de eigen geluidjes aanzet.
