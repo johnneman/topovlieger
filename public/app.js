@@ -78,7 +78,8 @@
 
   // ---------- grappige extra's (weetjes + eigen geluidjes) ----------
   const FUN = { jokes: {}, sounds: new Map(), buffers: new Map() };
-  const FUN_MAX_MS = 4500;
+  const FUN_MAX_MS = 4500;  // zo lang wacht het spel hooguit op een geluidje
+  const FUN_SHOW_MS = 8000; // zo lang blijft het tekstwolkje staan
   const AUDIO_EXT = /\.(m4a|mp3|wav|aac)$/i;
   const slug = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -127,6 +128,7 @@
     const el = $("#fun");
     el.textContent = text;
     el.classList.add("show");
+    funHideTimer = setTimeout(hideFun, FUN_SHOW_MS);
   }
 
   // iOS: zonder dit valt Web Audio onder de stille modus (schuifje/actieknop), terwijl de
@@ -247,9 +249,8 @@
     } else if (S.sound && S.speak && text && canSpeak()) done = speak(text);
     else done = wait(readMs);
     // Klaar als het geluid op is én de tekst lang genoeg in beeld stond om te lezen (max. FUN_MAX_MS).
-    return Promise.race([Promise.all([done, wait(readMs)]), wait(FUN_MAX_MS)]).then(() => {
-      if (token === funToken) funHideTimer = setTimeout(hideFun, 400);
-    });
+    // Het spel gaat verder als het geluid klaar is (max. FUN_MAX_MS); het wolkje blijft FUN_SHOW_MS staan.
+    return Promise.race([Promise.all([done, wait(readMs)]), wait(FUN_MAX_MS)]);
   }
 
   // ---------- kaart ----------
