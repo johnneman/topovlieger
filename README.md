@@ -75,3 +75,14 @@ Landt het vliegtuig goed, dan verschijnt er een grappig wolkje over het land ("O
   - *Grappige extra's bij landing*: zet alles uit, dus tekst, geluidjes en voorlezen.
   - *Voorlezen als er geen eigen geluidje is*: zet alleen de computerstem uit.
   - *Geluid*: zet al het geluid uit. De tekstwolkjes blijven dan wel.
+
+## Online via GitHub Pages
+
+Bij elke push naar `main` zet de workflow `.github/workflows/pages.yml` het spel op GitHub Pages. Dat gebeurt met `tools/build-pages.sh`:
+
+- **https://johnneman.github.io/topovlieger/**: het spel zónder eigen geluidjes (grapjes en voorleesstem werken wel).
+- **https://johnneman.github.io/topovlieger/geluidjes/**: de speciale link, mét eigen geluidjes. Zet je deze versie op je beginscherm, dan blijven de geluidjes erbij.
+
+De geluidsbestanden staan wel openbaar in de repo; de gewone link gebruikt ze alleen niet. Op je eigen server (Docker) spelen de geluidjes altijd.
+
+Eenmalig instellen: **Settings → Pages → Build and deployment → Source: GitHub Actions**.

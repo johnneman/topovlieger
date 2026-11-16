@@ -85,8 +85,15 @@
 
   async function loadFun() {
     FUN.jokes = await fetch("data/grapjes.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
-    // nginx geeft de inhoud van /sounds/ als JSON-lijst (autoindex_format json)
-    const files = await fetch("sounds/", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+    // Eigen geluidjes: op de eigen server altijd. Op GitHub Pages alleen via de speciale link
+    // /geluidjes/ (zet window.TOPO_OWN_SOUNDS) of met ?geluidjes=aan.
+    const ownSounds = window.TOPO_OWN_SOUNDS === true
+      || new URLSearchParams(location.search).get("geluidjes") === "aan"
+      || !/\.github\.io$/i.test(location.hostname);
+    if (!ownSounds) return;
+    const getJson = (u) => fetch(u, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    // GitHub Pages: vaste lijst sounds/index.json. Eigen server: nginx geeft de map als JSON (autoindex_format json).
+    const files = (await getJson("sounds/index.json")) || (await getJson("sounds/")) || [];
     const lookup = new Map();
     // Landen eerst; daarna de rest. Een naam die al bezet is (stad Luxemburg) werkt met voorvoegsel: "stad-luxemburg".
     const ordered = [...S.items.values()].sort((a, b) => (a.kind === "land" ? 0 : 1) - (b.kind === "land" ? 0 : 1));
