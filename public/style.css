@@ -149,27 +149,32 @@ details.kind[open] > summary::before { transform: rotate(90deg); }
 
 #zoom-ctl { position: absolute; right: 12px; top: calc(var(--safe-t) + 80px); display: flex; flex-direction: column; gap: 8px; }
 
+/* Bovenin, direct onder de balk: eerst het tekstwolkje, daaronder de korte meldingen. */
+#topstack {
+  position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + 64px);
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;
+}
 #toast {
-  position: absolute; left: 50%; top: calc(var(--safe-t) + 74px);
-  transform: translate(-50%, -10px); opacity: 0; transition: opacity .2s, transform .2s;
+  order: 2; transform: translateY(-10px); opacity: 0; transition: opacity .2s, transform .2s;
   background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 20px;
-  font-weight: 600; max-width: calc(100% - 120px); text-align: center; pointer-events: none;
+  font-weight: 600; max-width: calc(100% - 120px); text-align: center;
   box-shadow: 0 4px 14px rgba(0,0,0,.25);
 }
-#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toast:not(.show) { position: absolute; transition: none; } /* meteen weg, anders schuift hij tijdens het wegvagen over het wolkje */
+#toast.show { opacity: 1; transform: none; }
 #toast.good { background: #1f8a3a; }
 #toast.bad { background: #b3261e; }
 
 #fun {
-  position: absolute; left: 50%; top: calc(var(--safe-t) + 124px);
-  transform: translate(-50%, -8px) scale(.96); opacity: 0; transition: opacity .25s, transform .25s;
+  order: 1; transform: translateY(-8px) scale(.96); opacity: 0; transition: opacity .25s, transform .25s;
   background: #fffbe8; color: var(--ink); border: 2px solid #ffc94d;
-  padding: 10px 16px 11px; border-radius: 18px; max-width: min(420px, calc(100% - 110px));
-  font-size: 16px; line-height: 1.35; text-align: center; pointer-events: none;
+  padding: 10px 16px 11px; border-radius: 18px; max-width: min(460px, calc(100% - 110px));
+  font-size: 16px; line-height: 1.35; text-align: center;
   box-shadow: 0 4px 14px rgba(0,0,0,.2);
 }
+#fun:not(.show) { position: absolute; }
 #fun::before { content: "💬 "; }
-#fun.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+#fun.show { opacity: 1; transform: none; }
 
 #prompt {
   position: absolute; left: 12px; right: 12px; bottom: calc(var(--safe-b) + 12px);
