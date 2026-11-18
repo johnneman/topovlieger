@@ -27,6 +27,12 @@ idx = os.path.join(out, "index.html")
 html = open(idx, encoding="utf-8").read()
 assert 'href="style.css"' in html and 'src="app.js"' in html
 html = html.replace('href="style.css"', f'href="style.css?v={ver}"').replace('src="app.js"', f'src="app.js?v={ver}"')
+
+# Bezoekersteller (GoatCounter, zonder cookies). Staat alleen in de Pages-versie, zodat lokaal
+# testen niet meetelt. Dashboard: https://topovlieger.goatcounter.com
+assert html.count("</body>") == 1
+html = html.replace("</body>", '  <script data-goatcounter="https://topovlieger.goatcounter.com/count"\n'
+                    '          async src="https://gc.zgo.at/count.js"></script>\n</body>', 1)
 open(idx, "w", encoding="utf-8").write(html)
 
 # /geluidjes/: zelfde index.html, maar met <base href="../"> (alle bestanden komen uit de hoofdmap)
